@@ -34,20 +34,6 @@ public sealed class BinaryVerificationError : Exception
 }
 
 /// <summary>
-/// A non-2xx HTTP response during a binary download. Carries the status code so
-/// callers can distinguish a 404 (binary not built for this platform - e.g. the
-/// macOS Pro build hasn't shipped yet) from transient failures. Mirrors the JS
-/// <c>DownloadHttpError</c> introduced in v0.4.2.
-/// </summary>
-public sealed class DownloadHttpError : Exception
-{
-    public System.Net.HttpStatusCode Status { get; }
-    public DownloadHttpError(System.Net.HttpStatusCode status, string? reason)
-        : base($"Download failed: HTTP {(int)status} {reason}")
-        => Status = status;
-}
-
-/// <summary>
 /// Binary download and cache management for CloakBrowser.
 /// Downloads the patched Chromium binary on first use, caches it locally.
 /// Direct port of Python <c>cloakbrowser/download.py</c>.
@@ -183,31 +169,12 @@ public static class Download
                 }
                 catch (Exception e)
                 {
-                    // macOS has no Pro binary yet. Rather than hard-failing a paying
-                    // customer, fall back to the free binary with a clear notice.
-                    // Scoped to the 404 (binary-not-found) case so that (a) transient
-                    // and verification failures still hard-fail - no silent downgrade -
-                    // and (b) the moment the macOS Pro build ships, the 404 disappears
-                    // and Pro is served automatically with no wrapper change. (v0.4.2)
-                    if (Config.GetPlatformTag().StartsWith("darwin", StringComparison.Ordinal)
-                        && e is DownloadHttpError he
-                        && he.Status == System.Net.HttpStatusCode.NotFound)
-                    {
-                        CloakLog.Warning(
-                            "macOS Pro binary is not available yet - using the free binary " +
-                            "for now. Your license stays valid and you'll get the Pro binary " +
-                            "on macOS automatically once the build ships.");
-                        // fall through to the free-tier download below
-                    }
-                    else
-                    {
-                        // Transient failure with no cached Pro binary to use - surface a
-                        // clear error rather than silently downloading the free binary.
-                        throw new InvalidOperationException(
-                            $"Pro binary unavailable: {e.Message}. Your license is valid but the " +
-                            "Pro binary could not be downloaded right now. Retry in a moment. " +
-                            "To use the free binary instead, unset CLOAKBROWSER_LICENSE_KEY.", e);
-                    }
+                    // Transient failure with no cached Pro binary to use - surface a
+                    // clear error rather than silently downloading the free binary.
+                    throw new InvalidOperationException(
+                        $"Pro binary unavailable: {e.Message}. Your license is valid but the " +
+                        "Pro binary could not be downloaded right now. Retry in a moment. " +
+                        "To use the free binary instead, unset CLOAKBROWSER_LICENSE_KEY.", e);
                 }
             }
             else if (info != null)
@@ -761,7 +728,8 @@ public static class Download
         using var resp = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct)
             .ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
-            throw new DownloadHttpError(resp.StatusCode, resp.ReasonPhrase);
+            throw new InvalidOperationException(
+                $"Download failed: HTTP {(int)resp.StatusCode} {resp.ReasonPhrase}");
 
         long total = resp.Content.Headers.ContentLength ?? 0;
         long downloaded = 0;

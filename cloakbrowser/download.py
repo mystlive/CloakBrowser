@@ -143,31 +143,14 @@ def ensure_binary(license_key: str | None = None) -> str:
                 # Authenticity could not be confirmed — surface verbatim.
                 raise
             except Exception as e:
-                # macOS has no Pro binary yet. Rather than hard-failing a paying
-                # customer, fall back to the free binary with a clear notice.
-                # Scoped to the 404 (binary-not-found) case so that (a) transient
-                # and verification failures still hard-fail — no silent downgrade —
-                # and (b) the moment the macOS Pro build ships, the 404 disappears
-                # and Pro is served automatically with no wrapper change.
-                if (
-                    get_platform_tag().startswith("darwin")
-                    and isinstance(e, httpx.HTTPStatusError)
-                    and e.response.status_code == 404
-                ):
-                    logger.warning(
-                        "macOS Pro binary is not available yet — using the free "
-                        "binary for now. Your license stays valid and you'll get "
-                        "the Pro binary on macOS automatically once the build ships."
-                    )
-                else:
-                    # Transient failure with no cached Pro binary to use — surface a
-                    # clear error rather than silently downloading the free binary.
-                    raise RuntimeError(
-                        f"Pro binary unavailable: {e}. Your license is valid but the "
-                        f"Pro binary could not be downloaded right now. Retry in a "
-                        f"moment. To use the free binary instead, unset "
-                        f"CLOAKBROWSER_LICENSE_KEY."
-                    ) from e
+                # Transient failure with no cached Pro binary to use — surface a
+                # clear error rather than silently downloading the free binary.
+                raise RuntimeError(
+                    f"Pro binary unavailable: {e}. Your license is valid but the "
+                    f"Pro binary could not be downloaded right now. Retry in a "
+                    f"moment. To use the free binary instead, unset "
+                    f"CLOAKBROWSER_LICENSE_KEY."
+                ) from e
         elif info:
             logger.warning("License validation failed (plan=%s), using free tier", info.plan)
         else:

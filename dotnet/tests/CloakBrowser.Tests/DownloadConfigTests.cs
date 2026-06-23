@@ -115,33 +115,6 @@ public class WrapperVersionNewerTests
 }
 
 /// <summary>
-/// Tests for <see cref="DownloadHttpError"/>, the typed HTTP-status carrier the
-/// v0.4.2 macOS Pro fallback relies on to distinguish a 404 (no Pro binary built
-/// for this platform yet) from transient download failures.
-/// </summary>
-public class DownloadHttpErrorTests
-{
-    [Fact]
-    public void Carries_status_code_and_includes_it_in_message()
-    {
-        var ex = new DownloadHttpError(System.Net.HttpStatusCode.NotFound, "Not Found");
-        Assert.Equal(System.Net.HttpStatusCode.NotFound, ex.Status);
-        Assert.Contains("404", ex.Message);
-        Assert.Contains("Not Found", ex.Message);
-    }
-
-    [Fact]
-    public void Distinguishes_404_from_transient_5xx()
-    {
-        var notFound = new DownloadHttpError(System.Net.HttpStatusCode.NotFound, "Not Found");
-        var transient = new DownloadHttpError(System.Net.HttpStatusCode.ServiceUnavailable, "Unavailable");
-        // The macOS Pro fallback only triggers on 404; a 5xx stays a hard failure.
-        Assert.Equal(System.Net.HttpStatusCode.NotFound, notFound.Status);
-        Assert.NotEqual(System.Net.HttpStatusCode.NotFound, transient.Status);
-    }
-}
-
-/// <summary>
 /// Tests for the archive-extraction path-traversal (zip-slip) guard
 /// <see cref="Download.ResolveSafeEntryPath(string, string)"/>, shared by
 /// <c>ExtractTar</c> and <c>ExtractZip</c>.

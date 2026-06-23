@@ -57,20 +57,6 @@ export class BinaryVerificationError extends Error {
   }
 }
 
-/**
- * A non-2xx HTTP response during a binary download. Carries the status code so
- * callers can distinguish a 404 (binary not built for this platform) from
- * transient failures.
- */
-export class DownloadHttpError extends Error {
-  status: number;
-  constructor(status: number, statusText: string) {
-    super(`Download failed: HTTP ${status} ${statusText}`);
-    this.name = "DownloadHttpError";
-    this.status = status;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -107,33 +93,14 @@ export async function ensureBinary(licenseKey?: string): Promise<string> {
       } catch (e) {
         // Authenticity could not be confirmed — surface verbatim.
         if (e instanceof BinaryVerificationError) throw e;
-        // macOS has no Pro binary yet. Rather than hard-failing a paying
-        // customer, fall back to the free binary with a clear notice. Scoped to
-        // the 404 (binary-not-found) case so that (a) transient and verification
-        // failures still hard-fail — no silent downgrade — and (b) the moment the
-        // macOS Pro build ships, the 404 disappears and Pro is served
-        // automatically with no wrapper change.
-        if (
-          getPlatformTag().startsWith("darwin") &&
-          e instanceof DownloadHttpError &&
-          e.status === 404
-        ) {
-          console.warn(
-            "[cloakbrowser] macOS Pro binary is not available yet — using the " +
-              "free binary for now. Your license stays valid and you'll get the " +
-              "Pro binary on macOS automatically once the build ships."
-          );
-          // fall through to the free-tier download below
-        } else {
-          // Transient failure with no cached Pro binary to use — surface a clear
-          // error rather than silently downloading the free binary.
-          throw new Error(
-            `Pro binary unavailable: ${e}. Your license is valid but the Pro ` +
-              `binary could not be downloaded right now. Retry in a moment. To use ` +
-              `the free binary instead, unset CLOAKBROWSER_LICENSE_KEY.`,
-            { cause: e }
-          );
-        }
+        // Transient failure with no cached Pro binary to use — surface a clear
+        // error rather than silently downloading the free binary.
+        throw new Error(
+          `Pro binary unavailable: ${e}. Your license is valid but the Pro ` +
+            `binary could not be downloaded right now. Retry in a moment. To use ` +
+            `the free binary instead, unset CLOAKBROWSER_LICENSE_KEY.`,
+          { cause: e }
+        );
       }
     } else if (info) {
       console.log(`[cloakbrowser] License validation failed (plan=${info.plan}), using free tier`);
@@ -569,7 +536,7 @@ async function downloadFile(url: string, dest: string, headers?: Record<string, 
     });
 
     if (!response.ok) {
-      throw new DownloadHttpError(response.status, response.statusText);
+      throw new Error(`Download failed: HTTP ${response.status} ${response.statusText}`);
     }
 
     if (!response.body) {
